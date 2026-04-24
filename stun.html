@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Runner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #0f0f1b; /* Deep dark blue */
+            font-family: 'Poppins', sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+        }
+
+        canvas {
+            background-color: #1a1a2e;
+            border: 2px solid #e94560;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
+            display: block;
+        }
+
+        .ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-shadow: 0 0 10px #0f3460;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none; /* Hidden by default */
+        }
+
+        #game-over h2 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: #e94560;
+            text-shadow: 0 0 15px #e94560;
+        }
+
+        #game-over p {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="ui">Score: <span id="score">0</span></div>
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="game-over">
+            <h2>GAME OVER</h2>
+            <p>Press <b>Spacebar</b> to Restart</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+        const gameOverScreen = document.getElementById("game-over");
+
+        // Game Variables
+        let frames = 0;
+        let score = 0;
+        let isGameOver = false;
+        let gameSpeed = 5;
+
+        // The Ground
+        const groundHeight = 40;
+        const groundY = canvas.height - groundHeight;
+
+        // Player Object
+        const player = {
+            x: 50,
+            y: 200,
+            width: 30,
+            height: 30,
+            dy: 0, // vertical velocity
+            jumpPower: -12, // How high the player jumps
+            gravity: 0.6, // How fast the player falls
+            grounded: false,
+
+            draw() {
+                ctx.fillStyle = "#00f0ff"; // Neon Cyan
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "#00f0ff";
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.shadowBlur = 0; // Reset shadow for other elements
+            },
+
+            update() {
+                // Apply Gravity
+                this.y += this.dy;
+                
+                // If the player is above ground, accelerate downwards
+                if (this.y + this.height < groundY) {
+                    this.dy += this.gravity;
+                    this.grounded = false;
+                } else {
+                    // Hit the ground
+                    this.dy = 0;
+                    this.y = groundY - this.height;
+                    this.grounded = true;
+                }
+
+                this.draw();
+            },
+
+            jump() {
+                if (this.grounded) {
+                    this.dy = this.jumpPower;
+                    this.grounded = false;
+                }
+            }
+        };
+
+        // Obstacles Array
+        let obstacles = [];
+
+        function handleObstacles() {
+            // Spawn new obstacles
+            if (frames % 90 === 0) { // Adjust '90' to make obstacles spawn faster or slower
+                let obstacleHeight = 40 + Math.random() * 30; // Random height between 40 and 70
+                obstacles.push({
+                    x: canvas.width,
+                    y: groundY - obstacleHeight,
+                    width: 25,
+                    height: obstacleHeight
+                });
+            }
+
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                
+                // Move obstacle left
+                obs.x -= gameSpeed;
+
+                // Draw obstacle
+                ctx.fillStyle = "#e94560"; // Neon Pink/Red
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "#e94560";
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.shadowBlur = 0;
+
+                // Collision Detection (Axis-Aligned Bounding Box)
+                if (
+                    player.x < obs.x + obs.width &&
+                    player.x + player.width > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.height > obs.y
+                ) {
+                    isGameOver = true;
+                }
+
+                // Remove obstacles that go off-screen and add to score
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    scoreElement.innerText = score;
+                    i--; // Adjust index after splicing
+                    
+                    // Slightly increase speed over time
+                    if (score % 50 === 0) {
+                        gameSpeed += 0.5;
+                    }
+                }
+            }
+        }
+
+        // Draw the ground
+        function drawGround() {
+            ctx.fillStyle = "#0f3460"; // Dark blue ground
+            ctx.fillRect(0, groundY, canvas.width, groundHeight);
+            
+            // Neon line on top of ground
+            ctx.fillStyle = "#e94560";
+            ctx.fillRect(0, groundY, canvas.width, 2);
+        }
+
+        // Main Game Loop
+        function animate() {
+            if (isGameOver) {
+                gameOverScreen.style.display = "block";
+                return; // Stop the animation loop
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear screen
+            
+            drawGround();
+            player.update();
+            handleObstacles();
+
+            frames++;
+            requestAnimationFrame(animate); // Loop
+        }
+
+        // Reset Game
+        function resetGame() {
+            player.y = 200;
+            player.dy = 0;
+            obstacles = [];
+            score = 0;
+            frames = 0;
+            gameSpeed = 5;
+            scoreElement.innerText = score;
+            isGameOver = false;
+            gameOverScreen.style.display = "none";
+            animate();
+        }
+
+        // Event Listeners for Spacebar
+        window.addEventListener("keydown", function(e) {
+            if (e.code === "Space") {
+                if (isGameOver) {
+                    resetGame();
+                } else {
+                    player.jump();
+                }
+            }
+        });
+
+        // Prevent spacebar from scrolling the page if the window is small
+        window.addEventListener("keydown", function(e) {
+            if(e.code === "Space" && e.target == document.body) {
+                e.preventDefault();
+            }
+        });
+
+        // Start the game
+        animate();
+
+    </script>
+</body>
+</html>
